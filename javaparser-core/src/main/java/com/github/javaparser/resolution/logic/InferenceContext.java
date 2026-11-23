@@ -202,6 +202,10 @@ public class InferenceContext {
             ResolvedReferenceType formalTypeAsReference = formalType.asReferenceType();
             if (formalTypeAsReference.isJavaLangObject()) {
                 // nothing to do
+            } else if (actualType.isTypeVariable()) {
+                // an uninstantiated type variable (e.g. the E of a diamond 'new ArrayList<>()') carries no
+                // information to correlate with the formal type
+                // nothing to do
             } else {
                 throw new UnsupportedOperationException(formalType.describe() + " " + actualType.describe());
             }
