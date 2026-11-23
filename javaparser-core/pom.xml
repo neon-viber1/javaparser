@@ -65,6 +65,39 @@
                 </executions>
             </plugin>
             <plugin>
+                <!--
+                    JavaCC generates GeneratedJavaParserTokenManager.jjMoveNfa_0 as a single method of more than
+                    8000 bytes of bytecode, which HotSpot never JIT-compiles (-XX:+DontCompileHugeMethods).
+                    Split the three per-character-range loops of that method into separate methods.
+                    The step is idempotent and fails the build if the generated code has an unexpected shape.
+                -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>split-jjMoveNfa_0</id>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <phase>generate-sources</phase>
+                        <configuration>
+                            <target>
+                                <property name="tokenManager" value="${project.build.directory}/generated-sources/javacc/com/github/javaparser/GeneratedJavaParserTokenManager.java"/>
+                                <replaceregexp byline="false" file="${tokenManager}" flags="s" match="(private int jjMoveNfa_0\(int startState, int curPos\)\n\{\n[^{}]*   for \(;;\)\n   \{\n      if \(\+\+jjround == 0x7fffffff\)\n         ReInitRounds\(\);\n)      if \(curChar &lt; 64\)\n      \{\n(         long l = 1L &lt;&lt; curChar;\n         do\n.*?         \} while\(i != startsAt\);\n)      \}\n      else if \(curChar &lt; 128\)\n      \{\n(         long l = 1L &lt;&lt; \(curChar &amp; 077\);\n         do\n.*?         \} while\(i != startsAt\);\n)      \}\n      else\n      \{\n(         int hiByte = .*?         \} while\(i != startsAt\);\n)      \}\n(      if \(kind != 0x7fffffff\)\n.*?return curPos; \}\n   \}\n\}\n)" replace="private int jjMoveNfa_0_1(int i, int startsAt, int kind) { \2      return kind; } private int jjMoveNfa_0_2(int i, int startsAt, int kind) { \3      return kind; } private int jjMoveNfa_0_3(int i, int startsAt, int kind) { \4      return kind; } \1      if (curChar &lt; 64)          kind = jjMoveNfa_0_1(i, startsAt, kind);       else if (curChar &lt; 128)          kind = jjMoveNfa_0_2(i, startsAt, kind);       else          kind = jjMoveNfa_0_3(i, startsAt, kind); \5"/>
+                                <fail message="jjMoveNfa_0 in the generated token manager could not be split: unexpected JavaCC output">
+                                    <condition>
+                                        <not>
+                                            <resourcecontains resource="${tokenManager}" substring="private int jjMoveNfa_0_3(int i, int startsAt, int kind)"/>
+                                        </not>
+                                    </condition>
+                                </fail>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
