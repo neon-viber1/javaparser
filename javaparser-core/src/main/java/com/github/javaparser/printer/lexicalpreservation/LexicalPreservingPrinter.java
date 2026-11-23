@@ -35,6 +35,8 @@ import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.comments.*;
+import com.github.javaparser.ast.expr.InstanceOfExpr;
+import com.github.javaparser.ast.expr.PatternExpr;
 import com.github.javaparser.ast.observer.AstObserver;
 import com.github.javaparser.ast.observer.ObservableProperty;
 import com.github.javaparser.ast.observer.PropagatingAstObserver;
@@ -665,6 +667,12 @@ public class LexicalPreservingPrinter {
      *
      * @param node The parent node whose children should be processed
      */
+    private static boolean isTypeSharedWithPattern(Node node, Node child) {
+        return node instanceof InstanceOfExpr
+                && ((InstanceOfExpr) node).getPattern().isPresent()
+                && child == ((InstanceOfExpr) node).getType();
+    }
+
     private static void storeInitialTextForOneNode(Node node, List<JavaToken> nodeTokens) {
         if (nodeTokens == null) {
             nodeTokens = Collections.emptyList();
@@ -672,11 +680,29 @@ public class LexicalPreservingPrinter {
         List<Pair<Range, TextElement>> elements = new LinkedList<>();
         for (Node child : node.getChildNodes()) {
             if (!child.isPhantom()) {
+                if (isTypeSharedWithPattern(node, child)) {
+                    // The type of an instanceof expression with a pattern is the type written inside the pattern,
+                    // so its text is already represented by the pattern child.
+                    continue;
+                }
                 if (!child.hasRange()) {
                     throw new RuntimeException("Range not present on node " + child);
                 }
                 elements.add(new Pair<>(child.getRange().get(), new ChildTextElement(child)));
             }
+        }
+        if (node instanceof PatternExpr) {
+            // The type of the enclosing instanceof expression is the type written in the pattern: it is owned by
+            // the instanceof expression, but its text must be part of the pattern's text.
+            node.getParentNode()
+                    .filter(parent -> parent instanceof InstanceOfExpr)
+                    .map(parent -> ((InstanceOfExpr) parent).getType())
+                    .filter(type -> type.hasRange()
+                            && !type.isPhantom()
+                            && type.getParentNode().isPresent())
+                    .filter(type -> node.getRange().isPresent()
+                            && node.getRange().get().contains(type.getRange().get()))
+                    .ifPresent(type -> elements.add(new Pair<>(type.getRange().get(), new ChildTextElement(type))));
         }
         for (JavaToken token : nodeTokens) {
             elements.add(new Pair<>(token.getRange().get(), new TokenTextElement(token)));
