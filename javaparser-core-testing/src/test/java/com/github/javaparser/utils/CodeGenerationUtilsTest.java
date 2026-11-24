@@ -53,4 +53,26 @@ class CodeGenerationUtilsTest {
                 assertThrows(IllegalArgumentException.class, () -> getterToPropertyName("value"));
         assertEquals("Unexpected getterName 'value'", thrown.getMessage());
     }
+
+    @Test
+    void pathsStayOnTheFileSystemOfTheRoot() throws java.io.IOException {
+        java.nio.file.Path zip = java.nio.file.Files.createTempFile("cgu", ".zip");
+        java.nio.file.Files.delete(zip);
+        try (java.nio.file.FileSystem fs = java.nio.file.FileSystems.newFileSystem(
+                java.net.URI.create("jar:" + zip.toUri()), java.util.Collections.singletonMap("create", "true"))) {
+            java.nio.file.Path root = fs.getPath("/src");
+            assertEquals(
+                    fs, CodeGenerationUtils.packageAbsolutePath(root, "a.b").getFileSystem());
+            assertEquals(
+                    "/src/a/b/C.java",
+                    CodeGenerationUtils.fileInPackageAbsolutePath(root, "a.b", "C.java")
+                            .toString());
+            assertEquals(
+                    fs,
+                    CodeGenerationUtils.fileInPackageRelativePath(fs, "a.b", "C.java")
+                            .getFileSystem());
+        } finally {
+            java.nio.file.Files.deleteIfExists(zip);
+        }
+    }
 }

@@ -121,7 +121,7 @@ public class SourceRoot {
             String startPackage, String filename, ParserConfiguration configuration) throws IOException {
         assertNotNull(startPackage);
         assertNotNull(filename);
-        final Path relativePath = fileInPackageRelativePath(startPackage, filename);
+        final Path relativePath = fileInPackageRelativePath(root.getFileSystem(), startPackage, filename);
         if (cache.containsKey(relativePath)) {
             Log.trace("Retrieving cached %s", () -> relativePath);
             return cache.get(relativePath);
@@ -423,7 +423,7 @@ public class SourceRoot {
         assertNotNull(filename);
         assertNotNull(compilationUnit);
         Log.trace("Adding new file %s.%s", () -> startPackage, () -> filename);
-        final Path path = fileInPackageRelativePath(startPackage, filename);
+        final Path path = fileInPackageRelativePath(root.getFileSystem(), startPackage, filename);
         final ParseResult<CompilationUnit> parseResult = new ParseResult<>(compilationUnit, new ArrayList<>(), null);
         cache.put(path, parseResult);
         return this;
