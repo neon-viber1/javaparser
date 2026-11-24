@@ -31,6 +31,8 @@ import com.github.javaparser.symbolsolver.javassistmodel.JavassistFactory;
 import com.github.javaparser.symbolsolver.utils.JavassistModuleHelper;
 import com.github.javaparser.utils.Pair;
 import java.io.*;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -38,6 +40,9 @@ import java.util.*;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import javassist.ClassPath;
 import javassist.ClassPool;
 import javassist.CtClass;
 import javassist.NotFoundException;
@@ -45,11 +50,74 @@ import javassist.NotFoundException;
 /**
  * Will let the symbol solver look inside a jar file while solving types.
  *
+ * <p>Besides jar files and class file hierarchies, {@code .jmod} files (Java 9+, JEP 261) are supported.
+ * A jmod file is a zip file (preceded by a small header) which keeps its classes under the {@code classes/}
+ * directory; that prefix is stripped, and entries outside of it (such as {@code lib/} or {@code bin/}) are ignored.
+ *
+ *
  * @author Federico Tomassetti
  */
 public class JarTypeSolver implements TypeSolver {
 
     private static final String CLASS_EXTENSION = ".class";
+    private static final String JMOD_EXTENSION = ".jmod";
+    private static final String JMOD_CLASSES_ROOT = "classes/";
+
+    private static boolean isJmod(String path) {
+        return path.toLowerCase(Locale.ROOT).endsWith(JMOD_EXTENSION);
+    }
+
+    /**
+     * A javassist class path reading classes from the {@code classes/} directory of a jmod file.
+     */
+    private static class JmodClassPath implements ClassPath {
+
+        private final File file;
+
+        JmodClassPath(File file) {
+            this.file = file;
+        }
+
+        private static String entryName(String className) {
+            return JMOD_CLASSES_ROOT + className.replace('.', '/') + CLASS_EXTENSION;
+        }
+
+        @Override
+        public InputStream openClassfile(String className) throws NotFoundException {
+            try (ZipFile zip = new ZipFile(file)) {
+                ZipEntry entry = zip.getEntry(entryName(className));
+                if (entry == null) {
+                    throw new NotFoundException(className);
+                }
+                try (InputStream in = zip.getInputStream(entry)) {
+                    // the zip file is closed on return, so the content is read eagerly
+                    ByteArrayOutputStream out = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[8 * 1024];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        out.write(buffer, 0, read);
+                    }
+                    return new ByteArrayInputStream(out.toByteArray());
+                }
+            } catch (IOException e) {
+                throw new NotFoundException(className, e);
+            }
+        }
+
+        @Override
+        public URL find(String className) {
+            try (ZipFile zip = new ZipFile(file)) {
+                if (zip.getEntry(entryName(className)) == null) {
+                    return null;
+                }
+                return new URL("jar:" + file.toURI().toURL() + "!/" + entryName(className));
+            } catch (MalformedURLException e) {
+                return null;
+            } catch (IOException e) {
+                return null;
+            }
+        }
+    }
 
     /**
      * @deprecated Use of this static method (previously following singleton pattern) is strongly discouraged
@@ -188,7 +256,15 @@ public class JarTypeSolver implements TypeSolver {
      */
     private void addPathToJar(String pathToJarOrClassFileHierarchy) throws IOException {
         try {
-            classPool.appendClassPath(pathToJarOrClassFileHierarchy);
+            if (isJmod(pathToJarOrClassFileHierarchy)) {
+                File jmod = new File(pathToJarOrClassFileHierarchy);
+                if (!jmod.isFile()) {
+                    throw new NotFoundException(pathToJarOrClassFileHierarchy);
+                }
+                classPool.appendClassPath(new JmodClassPath(jmod));
+            } else {
+                classPool.appendClassPath(pathToJarOrClassFileHierarchy);
+            }
             registerKnownClassesFor(pathToJarOrClassFileHierarchy);
             registerModuleInfo();
         } catch (NotFoundException e) {
@@ -244,6 +320,7 @@ public class JarTypeSolver implements TypeSolver {
                         });
             }
         } else if (Files.isRegularFile(jarOrClassFileHierarchy)) {
+            boolean jmod = isJmod(pathToJarOrClassFileHierarchy);
             try (JarFile jarFile = new JarFile(pathToJarOrClassFileHierarchy)) {
 
                 Enumeration<JarEntry> jarEntries = jarFile.entries();
@@ -251,9 +328,17 @@ public class JarTypeSolver implements TypeSolver {
 
                     JarEntry entry = jarEntries.nextElement();
                     // Check if the entry is a .class file
-                    if (!entry.isDirectory() && entry.getName().endsWith(CLASS_EXTENSION)) {
-                        String qualifiedName = convertEntryPathToClassName(entry.getName());
-                        String classPoolName = convertEntryPathToClassPoolName(entry.getName());
+                    String entryName = entry.getName();
+                    if (jmod) {
+                        // Classes in a jmod live under "classes/"; anything else is not a class.
+                        if (!entryName.startsWith(JMOD_CLASSES_ROOT)) {
+                            continue;
+                        }
+                        entryName = entryName.substring(JMOD_CLASSES_ROOT.length());
+                    }
+                    if (!entry.isDirectory() && entryName.endsWith(CLASS_EXTENSION)) {
+                        String qualifiedName = convertEntryPathToClassName(entryName);
+                        String classPoolName = convertEntryPathToClassPoolName(entryName);
 
                         // If the qualified name is the same as the class pool name we don't need to duplicate store two
                         // different String instances. Let's reuse the same.
