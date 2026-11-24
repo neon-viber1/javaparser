@@ -27,8 +27,10 @@ import com.github.javaparser.GeneratedJavaParserConstants;
 import com.github.javaparser.JavaToken;
 import com.github.javaparser.JavaToken.Kind;
 import com.github.javaparser.TokenTypes;
+import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
+import com.github.javaparser.ast.PackageDeclaration;
 import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeArguments;
 import com.github.javaparser.ast.type.ArrayType;
@@ -1275,6 +1277,14 @@ public class Difference {
                 if (!isPreviousElementNewline && !isFirstElement && !previousIsWhiteSpace) {
                     // Insert after the new line
                     originalIndex++;
+                    if (isImportAddedAfterPackageDeclaration(addedTextElement)) {
+                        // The blank line(s) separating the package declaration from the imports must stay
+                        // right after the package declaration, so the new import goes after all of them.
+                        while (originalIndex < originalElements.size()
+                                && originalElements.get(originalIndex).isNewline()) {
+                            originalIndex++;
+                        }
+                    }
                     // We want to adjust the indentation while considering the new element that we
                     // added
                     originalIndex = adjustIndentation(indentation, nodeText, originalIndex, false);
@@ -1295,6 +1305,25 @@ public class Difference {
             }
         }
         diffIndex++;
+    }
+
+    /*
+     * Returns true if the added element is an import declaration and the original element
+     * just before the current position is the package declaration.
+     */
+    private boolean isImportAddedAfterPackageDeclaration(TextElement addedTextElement) {
+        if (!(addedTextElement instanceof ChildTextElement)
+                || !(((ChildTextElement) addedTextElement).getChild() instanceof ImportDeclaration)) {
+            return false;
+        }
+        for (int i = originalIndex - 1; i >= 0; i--) {
+            TextElement e = originalElements.get(i);
+            if (e.isNewline()) {
+                continue;
+            }
+            return e instanceof ChildTextElement && ((ChildTextElement) e).getChild() instanceof PackageDeclaration;
+        }
+        return false;
     }
 
     /*

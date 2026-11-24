@@ -30,6 +30,7 @@ import com.github.javaparser.GeneratedJavaParserConstants;
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ParserConfiguration;
+import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.TokenRange;
 import com.github.javaparser.ast.*;
 import com.github.javaparser.ast.body.*;
@@ -1960,5 +1961,48 @@ class LexicalPreservingPrinterTest extends AbstractLexicalPreservingTest {
         assertTrue(result.getProblems().get(0).getLocation().isPresent());
         LexicalPreservingPrinter.setup(parsed);
         assertEquals(code, LexicalPreservingPrinter.print(parsed));
+    }
+
+    private String addImportAt(String code, int index) {
+        CompilationUnit cu = StaticJavaParser.parse(code);
+        LexicalPreservingPrinter.setup(cu);
+        cu.getImports().add(index, new ImportDeclaration("com.example.bar", false, false));
+        return LexicalPreservingPrinter.print(cu);
+    }
+
+    @Test
+    void insertImportFirstKeepsLineBreaks() {
+        String code = "package foo;\n\nimport java.net.URI;\nimport java.net.URLEncoder;\n\n"
+                + "import static com.google.common.base.Charsets.UTF_8;\n\npublic class SomeClass {\n}";
+        assertEquals(
+                "package foo;\n\nimport com.example.bar;\nimport java.net.URI;\nimport java.net.URLEncoder;\n\n"
+                        + "import static com.google.common.base.Charsets.UTF_8;\n\npublic class SomeClass {\n}",
+                addImportAt(code, 0));
+    }
+
+    @Test
+    void insertImportFirstWithoutPackage() {
+        String code = "import java.net.URI;\nimport java.net.URLEncoder;\n\npublic class SomeClass {\n}";
+        assertEquals(
+                "import com.example.bar;\nimport java.net.URI;\nimport java.net.URLEncoder;\n\npublic class SomeClass {\n}",
+                addImportAt(code, 0));
+    }
+
+    @Test
+    void insertImportInMiddle() {
+        String code =
+                "package foo;\n\nimport java.net.URI;\nimport java.net.URLEncoder;\n\npublic class SomeClass {\n}";
+        assertEquals(
+                "package foo;\n\nimport java.net.URI;\nimport com.example.bar;\nimport java.net.URLEncoder;\n\npublic class SomeClass {\n}",
+                addImportAt(code, 1));
+    }
+
+    @Test
+    void insertImportLast() {
+        String code =
+                "package foo;\n\nimport java.net.URI;\nimport java.net.URLEncoder;\n\npublic class SomeClass {\n}";
+        assertEquals(
+                "package foo;\n\nimport java.net.URI;\nimport java.net.URLEncoder;\nimport com.example.bar;\n\npublic class SomeClass {\n}",
+                addImportAt(code, 2));
     }
 }
