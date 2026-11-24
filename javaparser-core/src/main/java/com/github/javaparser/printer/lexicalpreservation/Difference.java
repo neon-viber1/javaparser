@@ -650,6 +650,18 @@ public class Difference {
         } else if (removed.isChild() && originalElement.isComment()) {
             // removing the comment first
             nodeText.removeElement(originalIndex);
+            // When the comment follows another node, the whitespace which separated the comment from the removed
+            // node goes with the comment, otherwise an empty line is left behind.
+            int previous = originalIndex - 1;
+            while (previous >= 0 && nodeText.getTextElement(previous).isWhiteSpace()) {
+                previous--;
+            }
+            if (previous >= 0 && nodeText.getTextElement(previous).isChild()) {
+                while (originalIndex < nodeText.numberOfElements()
+                        && nodeText.getTextElement(originalIndex).isWhiteSpace()) {
+                    nodeText.removeElement(originalIndex);
+                }
+            }
             if (isRemovingIndentationActivable(removedGroup)) {
                 originalIndex = considerRemovingIndentation(nodeText, originalIndex);
             }
@@ -1286,6 +1298,7 @@ public class Difference {
                 originalIndex++;
             }
         }
+        restoreCommentOfAddedChild(addedTextElement);
         if (addedTextElement.isNewline()) {
             boolean followedByUnindent = isFollowedByUnindent(diffElements, diffIndex);
             boolean nextIsRightBrace = nextIsRightBrace(originalIndex);
@@ -1295,6 +1308,47 @@ public class Difference {
             }
         }
         diffIndex++;
+    }
+
+    /*
+     * When a node which already has an associated comment is (re)added to a list, the comment is not part of the
+     * calculated syntax model, so it has to be inserted explicitly before the node, using the node's indentation.
+     */
+    private void restoreCommentOfAddedChild(TextElement addedTextElement) {
+        if (!addedTextElement.isChild()) {
+            return;
+        }
+        Node child = ((ChildTextElement) addedTextElement).getChild();
+        if (child instanceof Comment || !child.getComment().isPresent()) {
+            return;
+        }
+        Comment comment = child.getComment().get();
+        List<TextElement> elements = nodeText.getElements();
+        int childIndex = -1;
+        for (int i = 0; i < elements.size(); i++) {
+            TextElement e = elements.get(i);
+            if (e == addedTextElement) {
+                childIndex = i;
+            } else if (e.isChild() && ((ChildTextElement) e).getChild() == comment) {
+                // the comment is already printed
+                return;
+            }
+        }
+        if (childIndex < 0) {
+            return;
+        }
+        int lineStart = childIndex;
+        while (lineStart > 0 && elements.get(lineStart - 1).isSpaceOrTab()) {
+            lineStart--;
+        }
+        List<TextElement> indentationElements = new ArrayList<>(elements.subList(lineStart, childIndex));
+        int insertAt = childIndex;
+        nodeText.addElement(insertAt++, new ChildTextElement(comment));
+        nodeText.addElement(insertAt++, new TokenTextElement(TokenTypes.eolTokenKind()));
+        for (TextElement e : indentationElements) {
+            nodeText.addElement(insertAt++, e);
+        }
+        originalIndex += 2 + indentationElements.size();
     }
 
     /*
