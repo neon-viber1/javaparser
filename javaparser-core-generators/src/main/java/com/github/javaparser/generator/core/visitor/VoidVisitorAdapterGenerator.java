@@ -47,7 +47,7 @@ public class VoidVisitorAdapterGenerator extends VisitorGenerator {
         BlockStmt body = visitMethod.getBody().get();
         body.getStatements().clear();
 
-        for (PropertyMetaModel field : node.getAllPropertyMetaModels()) {
+        for (PropertyMetaModel field : node.getDeclaredPropertyMetaModelsInHierarchy()) {
             final String getter = field.getGetterMethodName() + "()";
             if (field.getNodeReference().isPresent()) {
                 if (field.isOptional() && field.isNodeList()) {

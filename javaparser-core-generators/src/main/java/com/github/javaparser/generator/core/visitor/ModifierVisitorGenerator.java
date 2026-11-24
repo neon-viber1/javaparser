@@ -54,7 +54,7 @@ public class ModifierVisitorGenerator extends VisitorGenerator {
         List<String> order = Arrays.asList(
                 //                "comment", "name", "members", "parameters", "name",
                 "modifiers", "annotations");
-        List<PropertyMetaModel> sortedPropertyMetaModels = node.getAllPropertyMetaModels().stream()
+        List<PropertyMetaModel> sortedPropertyMetaModels = node.getDeclaredPropertyMetaModelsInHierarchy().stream()
                 .sorted(
                         Comparator.comparingInt((PropertyMetaModel o) -> order.indexOf(o.getName()))
                                 .reversed()

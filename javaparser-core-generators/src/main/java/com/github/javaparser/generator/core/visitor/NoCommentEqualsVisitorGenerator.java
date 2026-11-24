@@ -52,7 +52,7 @@ public class NoCommentEqualsVisitorGenerator extends VisitorGenerator {
 
             body.addStatement(f("final %s n2 = (%s) arg;", node.getTypeName(), node.getTypeName()));
 
-            for (PropertyMetaModel field : node.getAllPropertyMetaModels()) {
+            for (PropertyMetaModel field : node.getDeclaredPropertyMetaModelsInHierarchy()) {
                 final String getter = field.getGetterMethodName() + "()";
                 if (field.equals(JavaParserMetaModel.nodeMetaModel.commentPropertyMetaModel)) continue;
                 if (field.getNodeReference().isPresent()) {
