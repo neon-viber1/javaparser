@@ -46,7 +46,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given reader.
      * <p>
-     * The underlying {@code reader} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying reader stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(Reader reader) {
@@ -56,7 +56,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given input stream.
      * <p>
-     * The underlying {@code stream} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying input stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(InputStream input, Charset encoding) {
@@ -74,7 +74,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given input stream (UTF-8).
      * <p>
-     * The underlying {@code stream} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying input stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(InputStream input) {
@@ -84,7 +84,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given file.
      * <p>
-     * The underlying {@code stream} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(File file, Charset encoding) throws FileNotFoundException {
@@ -94,7 +94,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given file (UTF-8).
      * <p>
-     * The underlying {@code stream} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(File file) throws FileNotFoundException {
@@ -104,7 +104,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given path.
      * <p>
-     * The underlying {@code stream} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(Path path, Charset encoding) throws IOException {
@@ -114,7 +114,7 @@ public final class Providers {
     /**
      * Provide a Provider reading from the given path (UTF-8).
      * <p>
-     * The underlying {@code stream} stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
      * is called. The returned provider is read-once.
      */
     public static Provider provider(Path path) throws IOException {
@@ -144,9 +144,6 @@ public final class Providers {
     /**
      * Provide a Provider from the resource found in the current class loader with the provided encoding.<br> As
      * resource is accessed through a class loader, a leading "/" is not allowed in pathToResource
-     * <p>
-     * The resource stream stays open until the provider is parsed (which closes it) or {@link Provider#close()} is
-     * called. The returned provider is read-once.
      * <p>
      * The resource stream stays open until the provider is parsed (which closes it) or {@link Provider#close()} is
      * called. The returned provider is read-once.
