@@ -396,6 +396,16 @@ public abstract class Node
      * Contains all nodes that have this node set as their parent.
      * You can add and remove nodes from this list by adding or removing nodes from the fields of this node.
      *
+     * <p>This list is mostly an internal data structure and is best avoided in application code.
+     * It is an unmodifiable view that also contains comments, and its order is the order in which the
+     * children were attached to this node. It is <em>not</em> guaranteed to match source order or field order,
+     * and it may change between versions. Do not rely on it being a nicely ordered list.
+     *
+     * <p>Prefer the typed getters of the specific node (for example
+     * {@link com.github.javaparser.ast.nodeTypes.NodeWithMembers#getMembers()}),
+     * {@link #findAll(Class)}, {@link #walk(Class, Consumer)} or {@link #getChildNodesByType(Class)}.
+     * If you need source order, sort by the nodes' {@link #getRange() ranges}.
+     *
      * @return all nodes that have this node as their parent.
      */
     public List<Node> getChildNodes() {
