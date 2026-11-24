@@ -22,7 +22,7 @@
 package com.github.javaparser.printer.lexicalpreservation;
 
 import static com.github.javaparser.utils.TestUtils.assertEqualsString;
-import static com.github.javaparser.utils.TestUtils.readResource;
+import static com.github.javaparser.utils.TestUtils.readResourceUsingSystemEol;
 
 import com.github.javaparser.JavaParserAdapter;
 import com.github.javaparser.StaticJavaParser;
@@ -67,7 +67,8 @@ public abstract class AbstractLexicalPreservingTest {
     }
 
     protected String readExample(String resourceName) throws IOException {
-        return readResource("com/github/javaparser/lexical_preservation_samples/" + resourceName + ".java.txt");
+        return readResourceUsingSystemEol(
+                "com/github/javaparser/lexical_preservation_samples/" + resourceName + ".java.txt");
     }
 
     protected void assertTransformed(String exampleName, Node node) throws IOException {

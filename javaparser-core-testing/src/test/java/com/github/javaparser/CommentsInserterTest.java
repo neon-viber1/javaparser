@@ -41,6 +41,8 @@ import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.utils.LineSeparator;
 import com.github.javaparser.utils.TestParser;
+import com.github.javaparser.utils.TestUtils;
+import com.github.javaparser.utils.Utils;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -121,6 +123,18 @@ class CommentsInserterTest {
     void issue412() throws IOException {
         CompilationUnit cu = parseSample("Issue412").getResult().get();
         assertEqualToTextResourceNoEol(makeExpectedFilename("Issue412"), cu.toString());
+    }
+
+    @Test
+    void issue412IsIndependentOfTheEolOfTheSource() {
+        String source = TestUtils.readResource(makeFilename("Issue412"));
+        String expected = TestUtils.readResource(makeExpectedFilename("Issue412"));
+        for (String eol : new String[] {"\n", "\r\n", LineSeparator.SYSTEM.asRawString()}) {
+            String variant = Utils.normalizeEolInTextBlock(source, eol);
+            ParseResult<CompilationUnit> result = new JavaParser().parse(variant);
+            assertTrue(result.isSuccessful(), "parse failed with eol " + LineSeparator.detect(variant));
+            assertEqualsStringIgnoringEol(expected, result.getResult().get().toString());
+        }
     }
 
     @Test
