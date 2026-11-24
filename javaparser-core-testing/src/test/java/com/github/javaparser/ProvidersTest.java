@@ -24,7 +24,9 @@ package com.github.javaparser;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.github.javaparser.ast.CompilationUnit;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.Charset;
 import org.junit.jupiter.api.Test;
 
@@ -56,5 +58,37 @@ class ProvidersTest {
         JavaParser parser = new JavaParser();
         ParseResult<CompilationUnit> parse = parser.parse(ParseStart.COMPILATION_UNIT, provider);
         assertTrue(parse.isSuccessful());
+    }
+
+    private static class TrackingInputStream extends ByteArrayInputStream {
+        boolean closed;
+
+        TrackingInputStream(String s) {
+            super(s.getBytes(Providers.UTF8));
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed = true;
+            super.close();
+        }
+    }
+
+    @Test
+    void creatingProviderDoesNotCloseStreamUntilClosed() throws IOException {
+        TrackingInputStream stream = new TrackingInputStream("class A {}");
+        Provider provider = Providers.provider((InputStream) stream, Providers.UTF8);
+        assertFalse(stream.closed);
+        provider.close();
+        assertTrue(stream.closed);
+    }
+
+    @Test
+    void parseClosesStream() {
+        TrackingInputStream stream = new TrackingInputStream("class A {}");
+        Provider provider = Providers.provider((InputStream) stream, Providers.UTF8);
+        ParseResult<CompilationUnit> result = new JavaParser().parse(ParseStart.COMPILATION_UNIT, provider);
+        assertTrue(result.isSuccessful());
+        assertTrue(stream.closed);
     }
 }

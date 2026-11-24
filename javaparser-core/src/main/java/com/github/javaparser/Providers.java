@@ -30,6 +30,12 @@ import java.nio.file.Path;
 /**
  * Factory for providers of source code for JavaParser. Providers that have no parameter for encoding but need it will
  * use UTF-8.
+ * <p>
+ * A {@link Provider} is read-once: it is not reusable, and it must not be used again after it has been parsed.
+ * Providers created from a stream, reader, file, path or resource keep the underlying resource open. Normally it
+ * is closed by {@link JavaParser#parse(ParseStart, Provider)} (and the other parse methods that delegate to it)
+ * after parsing, whether or not parsing succeeded. If you create such a provider and never pass it to a parse method,
+ * the resource stays open until you call {@link Provider#close()} yourself.
  */
 public final class Providers {
 
@@ -37,10 +43,22 @@ public final class Providers {
 
     private Providers() {}
 
+    /**
+     * Provide a Provider reading from the given reader.
+     * <p>
+     * The underlying reader stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(Reader reader) {
         return new StreamProvider(assertNotNull(reader));
     }
 
+    /**
+     * Provide a Provider reading from the given input stream.
+     * <p>
+     * The underlying input stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(InputStream input, Charset encoding) {
         assertNotNull(input);
         assertNotNull(encoding);
@@ -53,22 +71,52 @@ public final class Providers {
         }
     }
 
+    /**
+     * Provide a Provider reading from the given input stream (UTF-8).
+     * <p>
+     * The underlying input stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(InputStream input) {
         return provider(input, UTF8);
     }
 
+    /**
+     * Provide a Provider reading from the given file.
+     * <p>
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(File file, Charset encoding) throws FileNotFoundException {
         return provider(new FileInputStream(assertNotNull(file)), assertNotNull(encoding));
     }
 
+    /**
+     * Provide a Provider reading from the given file (UTF-8).
+     * <p>
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(File file) throws FileNotFoundException {
         return provider(assertNotNull(file), UTF8);
     }
 
+    /**
+     * Provide a Provider reading from the given path.
+     * <p>
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(Path path, Charset encoding) throws IOException {
         return provider(Files.newInputStream(assertNotNull(path)), assertNotNull(encoding));
     }
 
+    /**
+     * Provide a Provider reading from the given path (UTF-8).
+     * <p>
+     * The underlying file stream stays open until the provider is parsed (which closes it) or {@link Provider#close()}
+     * is called. The returned provider is read-once.
+     */
     public static Provider provider(Path path) throws IOException {
         return provider(assertNotNull(path), UTF8);
     }
@@ -80,6 +128,9 @@ public final class Providers {
     /**
      * Provide a Provider from the resource found in class loader with the provided encoding.<br> As resource is
      * accessed through a class loader, a leading "/" is not allowed in pathToResource
+     * <p>
+     * The resource stream stays open until the provider is parsed (which closes it) or {@link Provider#close()} is
+     * called. The returned provider is read-once.
      */
     public static Provider resourceProvider(ClassLoader classLoader, String pathToResource, Charset encoding)
             throws IOException {
@@ -93,6 +144,9 @@ public final class Providers {
     /**
      * Provide a Provider from the resource found in the current class loader with the provided encoding.<br> As
      * resource is accessed through a class loader, a leading "/" is not allowed in pathToResource
+     * <p>
+     * The resource stream stays open until the provider is parsed (which closes it) or {@link Provider#close()} is
+     * called. The returned provider is read-once.
      */
     public static Provider resourceProvider(String pathToResource, Charset encoding) throws IOException {
         ClassLoader classLoader = Provider.class.getClassLoader();
@@ -102,6 +156,9 @@ public final class Providers {
     /**
      * Provide a Provider from the resource found in the current class loader with UTF-8 encoding.<br> As resource is
      * accessed through a class loader, a leading "/" is not allowed in pathToResource
+     * <p>
+     * The resource stream stays open until the provider is parsed (which closes it) or {@link Provider#close()} is
+     * called. The returned provider is read-once.
      */
     public static Provider resourceProvider(String pathToResource) throws IOException {
         return resourceProvider(pathToResource, UTF8);
