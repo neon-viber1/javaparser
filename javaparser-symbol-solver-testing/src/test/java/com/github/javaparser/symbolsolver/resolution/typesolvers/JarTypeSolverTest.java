@@ -30,12 +30,15 @@ import com.google.common.collect.Sets;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.jar.JarEntry;
 import java.util.jar.JarInputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -206,5 +209,65 @@ class JarTypeSolverTest extends AbstractTypeSolverTest<JarTypeSolver> {
         assertEquals(Sets.newHashSet(typeB), jarTypeSolver2.getKnownClasses());
         assertTrue(jarTypeSolver2.tryToSolveType(typeB).isSolved());
         assertFalse(jarTypeSolver2.tryToSolveType(typeA).isSolved());
+    }
+
+    /**
+     * Builds a jmod-style archive: the 4 byte jmod header followed by a zip file whose classes live under
+     * {@code classes/} and which also holds non class entries.
+     */
+    private static Path createJmodFrom(Path pathToJar, Path jmodFile) throws IOException {
+        try (OutputStream out = Files.newOutputStream(jmodFile)) {
+            out.write(new byte[] {'J', 'M', 1, 0});
+            try (ZipOutputStream zip = new ZipOutputStream(out);
+                    JarInputStream in = new JarInputStream(Files.newInputStream(pathToJar))) {
+                for (JarEntry entry = in.getNextJarEntry(); entry != null; entry = in.getNextJarEntry()) {
+                    if (entry.isDirectory() || !entry.getName().endsWith(".class")) {
+                        continue;
+                    }
+                    zip.putNextEntry(new ZipEntry("classes/" + entry.getName()));
+                    byte[] buffer = new byte[8 * 1024];
+                    int read;
+                    while ((read = in.read(buffer)) != -1) {
+                        zip.write(buffer, 0, read);
+                    }
+                    zip.closeEntry();
+                }
+                zip.putNextEntry(new ZipEntry("lib/not/AClass.class"));
+                zip.write(new byte[] {1, 2, 3});
+                zip.closeEntry();
+                zip.putNextEntry(new ZipEntry("bin/tool"));
+                zip.write(new byte[] {1});
+                zip.closeEntry();
+            }
+        }
+        return jmodFile;
+    }
+
+    @Test
+    void jmodClassesAreSolvedLikeJarClasses(@TempDir Path tempDir) throws IOException {
+        Path pathToJar = adaptPath("src/test/resources/javaparser-core-2.1.0.jar");
+        Path jmod = createJmodFrom(pathToJar, tempDir.resolve("javaparser-core.jmod"));
+        JarTypeSolver jarSolver = new JarTypeSolver(pathToJar);
+        JarTypeSolver jmodSolver = new JarTypeSolver(jmod);
+
+        assertEquals(jarSolver.getKnownClasses(), jmodSolver.getKnownClasses());
+        assertTrue(
+                jmodSolver.tryToSolveType("com.github.javaparser.SourcesHelper").isSolved());
+        assertTrue(jmodSolver.tryToSolveType("com.github.javaparser.Token").isSolved());
+        // nested class
+        ResolvedReferenceTypeDeclaration nested = jmodSolver.solveType("com.github.javaparser.ASTParser.JJCalls");
+        assertEquals("com.github.javaparser.ASTParser.JJCalls", nested.getQualifiedName());
+        assertFalse(jmodSolver.tryToSolveType("com.github.javaparser.Foo").isSolved());
+    }
+
+    @Test
+    void jmodEntriesOutsideClassesAreNotRegistered(@TempDir Path tempDir) throws IOException {
+        Path pathToJar = adaptPath("src/test/resources/javaparser-core-2.1.0.jar");
+        Path jmod = createJmodFrom(pathToJar, tempDir.resolve("javaparser-core.jmod"));
+        JarTypeSolver jmodSolver = new JarTypeSolver(jmod);
+
+        assertFalse(jmodSolver.tryToSolveType("lib.not.AClass").isSolved());
+        assertFalse(jmodSolver.getKnownClasses().stream().anyMatch(n -> n.startsWith("classes.")));
+        assertFalse(jmodSolver.getKnownClasses().stream().anyMatch(n -> n.startsWith("lib.")));
     }
 }
