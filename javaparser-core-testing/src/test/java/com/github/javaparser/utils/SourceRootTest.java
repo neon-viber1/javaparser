@@ -220,4 +220,33 @@ class SourceRootTest {
         assertTrue(Files.size(expectedRelativeTarget) > 0);
         assertTrue(Files.size(absPath) > 0);
     }
+
+    @Test
+    void parseAndSaveOnNonDefaultFileSystem(@TempDir Path tmp) throws IOException {
+        Path zip = tmp.resolve("fs.zip");
+        java.net.URI uri = java.net.URI.create("jar:" + zip.toUri());
+        try (java.nio.file.FileSystem fs =
+                java.nio.file.FileSystems.newFileSystem(uri, Collections.singletonMap("create", "true"))) {
+            Path zroot = fs.getPath("/src");
+            Path pkgDir = zroot.resolve("com").resolve("example");
+            Files.createDirectories(pkgDir);
+            Files.write(pkgDir.resolve("A.java"), "package com.example; class A {}".getBytes(StandardCharsets.UTF_8));
+
+            SourceRoot sr = new SourceRoot(zroot);
+            assertTrue(sr.tryToParse("com.example", "A.java").isSuccessful());
+            assertEquals(1, sr.tryToParse("com.example").size());
+            assertEquals(1, sr.tryToParseParallelized("com.example").size());
+            List<CompilationUnit> units = new java.util.ArrayList<>();
+            sr.parse("com.example", new ParserConfiguration(), (localPath, absolutePath, result) -> {
+                units.add(result.getResult().get());
+                return SourceRoot.Callback.Result.DONT_SAVE;
+            });
+            assertEquals(1, units.size());
+
+            Path out = fs.getPath("/out");
+            Files.createDirectories(out);
+            sr.saveAll(out, StandardCharsets.UTF_8);
+            assertTrue(Files.isRegularFile(out.resolve("com/example/A.java")));
+        }
+    }
 }

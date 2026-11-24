@@ -25,6 +25,8 @@ import static com.github.javaparser.utils.Utils.decapitalize;
 
 import java.io.File;
 import java.net.URISyntaxException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -92,7 +94,7 @@ public final class CodeGenerationUtils {
     }
 
     public static Path fileInPackageAbsolutePath(Path root, String pkg, String file) {
-        return fileInPackageAbsolutePath(root.toString(), pkg, file);
+        return resolveSegments(root, pkg, file).normalize();
     }
 
     /**
@@ -100,8 +102,24 @@ public final class CodeGenerationUtils {
      * "com/laamella/Simple.java"
      */
     public static Path fileInPackageRelativePath(String pkg, String file) {
-        pkg = packageToPath(pkg);
-        return Paths.get(pkg, file).normalize();
+        return fileInPackageRelativePath(FileSystems.getDefault(), pkg, file);
+    }
+
+    /**
+     * Like {@link #fileInPackageRelativePath(String, String)}, but the result belongs to the given file system.
+     */
+    public static Path fileInPackageRelativePath(FileSystem fileSystem, String pkg, String file) {
+        return resolveSegments(fileSystem.getPath(""), pkg, file).normalize();
+    }
+
+    private static Path resolveSegments(Path base, String pkg, String file) {
+        Path result = base;
+        if (!pkg.isEmpty()) {
+            for (String segment : pkg.split("\\.")) {
+                result = result.resolve(segment);
+            }
+        }
+        return result.resolve(file);
     }
 
     /**
@@ -123,10 +141,12 @@ public final class CodeGenerationUtils {
     }
 
     public static Path packageAbsolutePath(Path root, String pkg) {
-        return packageAbsolutePath(root.toString(), pkg);
+        return resolveSegments(root, pkg, "").normalize();
     }
 
     /**
+     * Always on the default file system, as it is derived from the class loader.
+     *
      * @return the root directory of the classloader for class c.
      */
     public static Path classLoaderRoot(Class<?> c) {
