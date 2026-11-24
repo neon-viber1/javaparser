@@ -1130,6 +1130,26 @@ public class Difference {
         return false;
     }
 
+    /*
+     * When the element is added as the first one after an indent (e.g. the first statement of a block) and the
+     * original text already has an indented element at this position, returns the whitespace which precedes it,
+     * so that the added element is aligned with it. Returns an empty list otherwise.
+     */
+    private List<TextElement> indentationOfFirstElementInBlock() {
+        if (addedIndentation
+                || diffIndex == 0
+                || !(diffElements.get(diffIndex - 1).getElement() instanceof CsmIndent)) {
+            return new ArrayList<>();
+        }
+        List<TextElement> result = new ArrayList<>();
+        for (int i = originalIndex;
+                i < originalElements.size() && originalElements.get(i).isSpaceOrTab();
+                i++) {
+            result.add(originalElements.get(i));
+        }
+        return result;
+    }
+
     private void addIndent() {
         for (int i = 0; i < IndentationConstants.STANDARD_INDENTATION_SIZE; i++) {
             indentation.add(new TokenTextElement(GeneratedJavaParserConstants.SPACE));
@@ -1185,6 +1205,10 @@ public class Difference {
         if (isPreviousElementNewline) {
             List<TextElement> elements =
                     processIndentation(indentation, originalElements.subList(0, originalIndex - 1));
+            List<TextElement> existingIndentation = indentationOfFirstElementInBlock();
+            if (!existingIndentation.isEmpty()) {
+                elements = existingIndentation;
+            }
             boolean nextIsRightBrace = nextIsRightBrace(originalIndex);
             for (TextElement e : elements) {
                 if (!nextIsRightBrace
