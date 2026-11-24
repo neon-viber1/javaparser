@@ -49,6 +49,8 @@ public interface NodeWithMembers<N extends Node> extends NodeWithSimpleName<N> {
     /**
      * @return all members inside the braces of this node,
      * like fields, methods, nested types, etc.
+     * The returned list is live and can be modified directly,
+     * for example {@code getMembers().addFirst(member)} or {@code getMembers().add(0, member)}.
      */
     NodeList<BodyDeclaration<?>> getMembers();
 
@@ -64,6 +66,10 @@ public interface NodeWithMembers<N extends Node> extends NodeWithSimpleName<N> {
         return (N) this;
     }
 
+    /**
+     * Appends a member at the end of {@link #getMembers()}.
+     * To insert at another position, modify {@link #getMembers()} directly.
+     */
     @SuppressWarnings("unchecked")
     default N addMember(BodyDeclaration<?> member) {
         getMembers().add(member);
@@ -73,7 +79,9 @@ public interface NodeWithMembers<N extends Node> extends NodeWithSimpleName<N> {
     N setMembers(NodeList<BodyDeclaration<?>> members);
 
     /**
-     * Add a field to this and automatically add the import of the type if needed
+     * Add a field to this and automatically add the import of the type if needed.
+     * The field is appended after the existing members;
+     * to insert it at another position, modify {@link #getMembers()} directly.
      *
      * @param typeClass the type of the field
      * @param name      the name of the field
@@ -263,6 +271,8 @@ public interface NodeWithMembers<N extends Node> extends NodeWithSimpleName<N> {
 
     /**
      * Adds a methods with void return by default to this.
+     * The method is appended after the existing members;
+     * to insert it at another position, modify {@link #getMembers()} directly.
      *
      * @param methodName the method name
      * @param modifiers  the modifiers like {@link Modifier.Keyword#PUBLIC}

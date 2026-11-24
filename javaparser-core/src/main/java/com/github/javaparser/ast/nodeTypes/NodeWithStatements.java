@@ -35,6 +35,9 @@ import com.github.javaparser.ast.stmt.Statement;
  */
 public interface NodeWithStatements<N extends Node> {
 
+    /**
+     * @return the statements of this node. The returned list is live and can be modified directly.
+     */
     NodeList<Statement> getStatements();
 
     default Statement getStatement(int i) {
@@ -49,6 +52,11 @@ public interface NodeWithStatements<N extends Node> {
 
     N setStatements(final NodeList<Statement> statements);
 
+    /**
+     * Appends a statement at the end of {@link #getStatements()}.
+     * To insert at another position, use {@link #addStatement(int, Statement)}
+     * or modify {@link #getStatements()} directly.
+     */
     @SuppressWarnings("unchecked")
     default N addStatement(Statement statement) {
         getStatements().add(statement);

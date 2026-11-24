@@ -437,4 +437,23 @@ class NodeListTest extends AbstractLexicalPreservingTest {
             }
         }
     }
+
+    @Test
+    void membersListIsLiveAndAllowsInsertingAtTheBeginning() {
+        com.github.javaparser.ast.CompilationUnit cu =
+                com.github.javaparser.StaticJavaParser.parse("class A { int b; }");
+        com.github.javaparser.ast.body.ClassOrInterfaceDeclaration a =
+                cu.getClassByName("A").get();
+        com.github.javaparser.ast.body.FieldDeclaration first = new com.github.javaparser.ast.body.FieldDeclaration(
+                new NodeList<>(),
+                new com.github.javaparser.ast.body.VariableDeclarator(
+                        com.github.javaparser.StaticJavaParser.parseType("int"), "first"));
+        a.getMembers().addFirst(first);
+        com.github.javaparser.ast.body.FieldDeclaration appended = a.addField("int", "last");
+
+        assertSame(first, a.getMember(0));
+        assertSame(a, first.getParentNode().get());
+        assertSame(appended, a.getMember(2));
+        assertEquals(3, a.getMembers().size());
+    }
 }

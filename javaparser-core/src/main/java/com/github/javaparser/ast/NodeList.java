@@ -41,6 +41,20 @@ import java.util.stream.Stream;
  * Unlike normal Nodes, this does not mean that it is a child of that parent.
  * Instead, this list will make every node it contains a child of its parent.
  * This way, a NodeList does not create an extra level inside the AST.
+ * <p>
+ * A NodeList is the mutable, live list behind every list-valued AST property
+ * (members, statements, parameters, arguments, ...).
+ * The list returned by a getter such as {@code getMembers()} is not a copy:
+ * it can be modified directly, and the change is reflected in the AST.
+ * Added nodes get this list's parent node as their parent, and observers are notified.
+ * Besides the standard {@link java.util.List} methods, such as {@code add(int, Object)},
+ * {@code remove} and {@code set}, it offers the positional helpers
+ * {@link #addFirst(Node)}, {@link #addLast(Node)}, {@link #addBefore(Node, Node)},
+ * {@link #addAfter(Node, Node)} and {@link #replace(Node, Node)}.
+ * <p>
+ * Convenience methods like {@code addField}, {@code addMethod} or {@code addStatement}
+ * are shortcuts that append to the end of such a list.
+ * To insert at another position, modify the list directly.
  *
  * @param <N> the type of nodes contained.
  */
