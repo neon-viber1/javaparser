@@ -125,7 +125,7 @@ class ConstructorDeclarationTransformationsTest extends AbstractLexicalPreservin
     void addingConstructorInvocationAsSecondStatement() {
         ConstructorDeclaration cd = consider("public A() { int x; }");
         cd.getBody().getStatements().add(new ExplicitConstructorInvocationStmt().setThis(false));
-        assertTransformedToString("public A() { int x; super();" + System.lineSeparator() + "}", cd);
+        assertTransformedToString("public A() { int x; super();}", cd);
     }
 
     @Test
