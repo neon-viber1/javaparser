@@ -51,7 +51,7 @@ public class GenericVisitorAdapterGenerator extends VisitorGenerator {
 
         final String resultCheck = "if (result != null) return result;";
 
-        for (PropertyMetaModel field : node.getAllPropertyMetaModels()) {
+        for (PropertyMetaModel field : node.getDeclaredPropertyMetaModelsInHierarchy()) {
             final String getter = field.getGetterMethodName() + "()";
             if (field.getNodeReference().isPresent()) {
                 if (field.isOptional()) {

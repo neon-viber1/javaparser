@@ -28,6 +28,7 @@ import com.github.javaparser.ast.NodeList;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,6 +45,8 @@ public abstract class BaseNodeMetaModel {
     private final List<PropertyMetaModel> derivedPropertyMetaModels = new ArrayList<>();
 
     private final List<PropertyMetaModel> constructorParameters = new ArrayList<>();
+
+    private volatile List<PropertyMetaModel> allPropertyMetaModels;
 
     private final Class<? extends Node> type;
 
@@ -94,7 +97,8 @@ public abstract class BaseNodeMetaModel {
 
     /**
      * @return a list of all properties declared directly in this node (not its parent nodes.) These are also available
-     * as fields.
+     * as fields. Note that a subclass may not support a property declared by its parent; see
+     * {@link #getAllPropertyMetaModels()}.
      */
     public List<PropertyMetaModel> getDeclaredPropertyMetaModels() {
         return declaredPropertyMetaModels;
@@ -113,17 +117,42 @@ public abstract class BaseNodeMetaModel {
     }
 
     /**
-     * @return a list of all properties in this node and its parents. Note that a new list is created every time this
-     * method is called.
+     * @return an unmodifiable list of all properties that are valid for this node, including those of its parents.
+     * For concrete nodes this is the constructor parameters plus the comment property, so a property that is declared
+     * by a parent class but not supported by this node (such as "annotations" for a void type) is not included.
+     * Note that this can differ from the union of {@link #getDeclaredPropertyMetaModels()} along the inheritance chain.
+     * The list is computed on first use and cached.
      */
     public List<PropertyMetaModel> getAllPropertyMetaModels() {
-        List<PropertyMetaModel> allPropertyMetaModels = new ArrayList<>(getDeclaredPropertyMetaModels());
+        List<PropertyMetaModel> result = allPropertyMetaModels;
+        if (result == null) {
+            result = Collections.unmodifiableList(computeAllPropertyMetaModels());
+            allPropertyMetaModels = result;
+        }
+        return result;
+    }
+
+    /**
+     * @return a new list of the properties declared by this node and by all of its parents, whether or not the
+     * concrete node supports them. This is what the code generators use, since the corresponding getters and setters
+     * exist on the node class.
+     */
+    public List<PropertyMetaModel> getDeclaredPropertyMetaModelsInHierarchy() {
+        List<PropertyMetaModel> all = new ArrayList<>(getDeclaredPropertyMetaModels());
         BaseNodeMetaModel walkNode = this;
         while (walkNode.getSuperNodeMetaModel().isPresent()) {
             walkNode = walkNode.getSuperNodeMetaModel().get();
-            allPropertyMetaModels.addAll(walkNode.getDeclaredPropertyMetaModels());
+            all.addAll(walkNode.getDeclaredPropertyMetaModels());
         }
-        return allPropertyMetaModels;
+        return all;
+    }
+
+    private List<PropertyMetaModel> computeAllPropertyMetaModels() {
+        List<PropertyMetaModel> all = getDeclaredPropertyMetaModelsInHierarchy();
+        if (!isAbstract) {
+            all.removeIf(p -> !constructorParameters.contains(p) && !"comment".equals(p.getName()));
+        }
+        return all;
     }
 
     public boolean isInstanceOfMetaModel(BaseNodeMetaModel baseMetaModel) {
