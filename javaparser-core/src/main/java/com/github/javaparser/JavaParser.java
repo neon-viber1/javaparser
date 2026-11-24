@@ -108,7 +108,8 @@ public final class JavaParser {
      * The start indicates what can be found in the source code (compilation unit, block, import...)
      *
      * @param start refer to the constants in ParseStart to see what can be parsed.
-     * @param provider refer to Providers to see how you can read source. The provider will be closed after parsing.
+     * @param provider refer to Providers to see how you can read source. The provider will be closed after parsing
+     * (whether or not parsing succeeds) and must not be reused afterwards.
      * @param <N> the subclass of Node that is the result of parsing in the start.
      * @return the parse result, a collection of encountered problems, and some extra data.
      */
