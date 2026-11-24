@@ -42,6 +42,12 @@ public class ListRemovalChange implements Change {
 
     @Override
     public Object getValue(ObservableProperty property, Node node) {
+        if (property == ObservableProperty.USING_DIAMOND_OPERATOR
+                && observableProperty == ObservableProperty.TYPE_ARGUMENTS) {
+            // The diamond operator is derived from the type arguments list: it is in use when the list is present
+            // but empty, so it must reflect the list as it will be after this change.
+            return ((NodeList<?>) getValue(observableProperty, node)).isEmpty();
+        }
         if (property == observableProperty) {
             Object currentRawValue = new NoChange().getValue(property, node);
             if (currentRawValue instanceof Optional) {
