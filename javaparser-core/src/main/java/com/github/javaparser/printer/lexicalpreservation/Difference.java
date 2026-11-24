@@ -31,6 +31,7 @@ import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.comments.Comment;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeArguments;
+import com.github.javaparser.ast.stmt.BlockStmt;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.Type;
@@ -1179,6 +1180,11 @@ public class Difference {
             return;
         }
         TextElement addedTextElement = added.toTextElement();
+        if (addedTextElement.isNewline() && isNonEmptySingleLine()) {
+            // The node is written on a single line and already has children: do not introduce a line break
+            diffIndex++;
+            return;
+        }
         boolean used = false;
         boolean isPreviousElementNewline =
                 (originalIndex > 0) && originalElements.get(originalIndex - 1).isNewline();
@@ -1195,7 +1201,7 @@ public class Difference {
                     nodeText.addElement(originalIndex++, e);
                 }
             }
-        } else if (isAfterLBrace(nodeText, originalIndex) && !isAReplacement(diffIndex)) {
+        } else if (isAfterLBrace(nodeText, originalIndex) && !isAReplacement(diffIndex) && !isNonEmptySingleLine()) {
             if (addedTextElement.isNewline()) {
                 used = true;
             }
@@ -1295,6 +1301,28 @@ public class Difference {
             }
         }
         diffIndex++;
+    }
+
+    /**
+     * Returns true if the text of the node contains at least one child and no line break.
+     * In this case the code is written on a single line and inserting a line break would
+     * needlessly alter its layout.
+     */
+    private boolean isNonEmptySingleLine() {
+        if (!(node instanceof BlockStmt)) {
+            return false;
+        }
+        boolean hasChild = false;
+        for (int i = 0; i < nodeText.numberOfElements(); i++) {
+            TextElement element = nodeText.getTextElement(i);
+            if (element.isNewline()) {
+                return false;
+            }
+            if (element.isChild()) {
+                hasChild = true;
+            }
+        }
+        return hasChild;
     }
 
     /*
