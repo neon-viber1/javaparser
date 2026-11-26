@@ -29,12 +29,55 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.github.javaparser.ParseResult;
 import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class ParserCollectionStrategyTest {
+
+    @Test
+    void collectThenParseProjectSources(@TempDir Path projectDirectory) throws IOException {
+        Path mainRoot = projectDirectory.resolve("src/main/java");
+        Path testRoot = projectDirectory.resolve("src/test/java");
+        Files.createDirectories(mainRoot.resolve("example"));
+        Files.createDirectories(testRoot.resolve("example"));
+        Files.write(mainRoot.resolve("example/Main.java"), "package example; class Main {}".getBytes());
+        Files.write(testRoot.resolve("example/MainTest.java"), "package example; class MainTest {}".getBytes());
+        Files.write(mainRoot.resolve("module-info.java"), "module example {}".getBytes());
+
+        ParserConfiguration configuration =
+                new ParserConfiguration().setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_9);
+        ProjectRoot emptyProject = new ProjectRoot(projectDirectory, configuration);
+        assertThat(emptyProject.getRoot()).isEqualTo(projectDirectory);
+        assertThat(emptyProject.getSourceRoots()).isEmpty();
+
+        ProjectRoot project = new ParserCollectionStrategy(configuration).collect(projectDirectory);
+        assertThat(project.getSourceRoots())
+                .extracting(SourceRoot::getRoot)
+                .containsExactlyInAnyOrder(mainRoot, testRoot);
+        for (SourceRoot sourceRoot : project.getSourceRoots()) {
+            assertThat(sourceRoot.getParserConfiguration()).isSameAs(configuration);
+            assertThat(sourceRoot.getCache()).isEmpty();
+            assertThat(sourceRoot.getCompilationUnits()).isEmpty();
+        }
+
+        List<String> declarations = new ArrayList<>();
+        for (SourceRoot sourceRoot : project.getSourceRoots()) {
+            assertThat(sourceRoot.tryToParse()).allMatch(ParseResult::isSuccessful);
+            for (CompilationUnit unit : sourceRoot.getCompilationUnits()) {
+                unit.findAll(ClassOrInterfaceDeclaration.class).forEach(declaration -> {
+                    System.out.println(declaration.getNameAsString());
+                    declarations.add(declaration.getNameAsString());
+                });
+            }
+        }
+        assertThat(declarations).containsExactlyInAnyOrder("Main", "MainTest");
+    }
 
     private final ParserCollectionStrategy parserCollectionStrategy =
             new ParserCollectionStrategy(new ParserConfiguration().setLanguageLevel(JAVA_9));
