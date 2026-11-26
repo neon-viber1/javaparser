@@ -29,11 +29,46 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The structure of a Java project directory.
- * It was originally created specifically to quickly configure the symbol solver.
- * You can use it as a general container for project information.
- * <p>A project has a root directory, and it has zero or more directories that contain source code.
- * <p>To create a ProjectRoot use a CollectionStrategy, or instantiate ProjectRoot yourself.
+ * Groups a project's Java source roots so that its source code can be analysed or manipulated as a whole.
+ * A project directory, available through {@link #getRoot()}, can contain zero or more {@link SourceRoot}s,
+ * for example separate roots for production code, test code, or individual modules. Each source root is the
+ * base directory of a Java package hierarchy, not an individual source file or parsed syntax tree.
+ *
+ * <p>Constructing a {@code ProjectRoot} only records the project directory and parser configuration; it does not
+ * discover or parse source files. Use {@link #addSourceRoot(Path)} to register known source directories, or use a
+ * {@link CollectionStrategy} to discover them. For example, {@link ParserCollectionStrategy} parses files to identify
+ * source roots without populating the returned source roots' compilation-unit caches. Explicitly parse each root,
+ * then traverse or modify its {@link com.github.javaparser.ast.CompilationUnit}s to work across the project.
+ *
+ * <p>For example, given an existing {@code Path projectDirectory}, the following collects source roots, parses
+ * their files, and prints the names of all class and interface declarations. It uses {@link ParserCollectionStrategy},
+ * which infers source roots from Java files and their package declarations rather than build files. The files must
+ * use a package layout and Java syntax supported by that strategy and the chosen parser configuration. Here Java 9
+ * is selected, including support for {@code module-info.java}; select a suitable language level for your project.
+ * The enclosing method must handle or declare {@link java.io.IOException} from parsing.
+ *
+ * <pre>{@code
+ * ParserConfiguration configuration = new ParserConfiguration()
+ *         .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_9);
+ * ProjectRoot project = new ParserCollectionStrategy(configuration).collect(projectDirectory);
+ * for (SourceRoot sourceRoot : project.getSourceRoots()) {
+ *     sourceRoot.tryToParse();
+ *     for (com.github.javaparser.ast.CompilationUnit unit : sourceRoot.getCompilationUnits()) {
+ *         unit.findAll(com.github.javaparser.ast.body.ClassOrInterfaceDeclaration.class)
+ *                 .forEach(declaration -> System.out.println(declaration.getNameAsString()));
+ *     }
+ * }
+ * }</pre>
+ *
+ * <p>{@link SourceRoot#tryToParse()} caches parse results, including failures; inspect its returned results for
+ * problems. {@link SourceRoot#getCompilationUnits()} exposes only successfully parsed units (or units added
+ * manually). Collection is not a file watcher, and cached parse results are not automatically refreshed when files
+ * change. Use separate project and source-root instances for independent versions of a project's sources.
+ *
+ * <p>Parsing and AST traversal do not require symbol resolution. Resolving references additionally requires a
+ * configured {@linkplain ParserConfiguration#setSymbolResolver(com.github.javaparser.resolution.SymbolResolver)
+ * symbol resolver} and the appropriate source and dependency type solvers, typically provided by the symbol-solver
+ * module. Constructing a {@code ProjectRoot} does not register sources with a global symbol solver.
  */
 public class ProjectRoot {
 
