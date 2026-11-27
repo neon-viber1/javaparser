@@ -26,6 +26,7 @@ import com.github.javaparser.resolution.declarations.ResolvedTypeParameterDeclar
 import com.github.javaparser.resolution.model.typesystem.ReferenceTypeImpl;
 import com.github.javaparser.resolution.types.*;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,8 +43,19 @@ public class InferenceContext {
 
     private Map<String, InferenceVariableType> inferenceVariableTypeMap = new HashMap<>();
 
+    private final Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer;
+
     public InferenceContext(TypeSolver typeSolver) {
+        this(typeSolver, typeParameter -> true);
+    }
+
+    /**
+     * Creates an inference context that only replaces the selected type parameters with inference variables.
+     * Type parameters already declared in an enclosing context can be excluded to preserve their identity.
+     */
+    public InferenceContext(TypeSolver typeSolver, Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer) {
         this.typeSolver = typeSolver;
+        this.isTypeParameterToInfer = isTypeParameterToInfer;
     }
 
     private InferenceVariableType inferenceVariableTypeForTp(ResolvedTypeParameterDeclaration tp) {
@@ -173,6 +185,8 @@ public class InferenceContext {
             } else if (formalType instanceof InferenceVariableType) {
                 ((InferenceVariableType) actualType).registerEquivalentType(formalType);
             }
+        } else if (actualType.isTypeVariable()) {
+            return;
         } else if (actualType.isConstraint()) {
             ResolvedLambdaConstraintType constraintType = actualType.asConstraintType();
             if (constraintType.getBound() instanceof InferenceVariableType) {
@@ -223,7 +237,9 @@ public class InferenceContext {
             return type;
         }
         if (type.isTypeVariable()) {
-            return inferenceVariableTypeForTp(type.asTypeParameter());
+            return isTypeParameterToInfer.test(type.asTypeParameter())
+                    ? inferenceVariableTypeForTp(type.asTypeParameter())
+                    : type;
         }
         if (type.isReferenceType()) {
             return type.asReferenceType().transformTypeParameters(tp -> placeInferenceVariables(tp));
@@ -253,7 +269,7 @@ public class InferenceContext {
         if (type.isReferenceType()) {
             return type.asReferenceType().transformTypeParameters(tp -> resolve(tp));
         }
-        if (type.isNull() || type.isPrimitive() || type.isVoid()) {
+        if (type.isNull() || type.isPrimitive() || type.isVoid() || type.isTypeVariable()) {
             return type;
         }
         if (type.isArray()) {

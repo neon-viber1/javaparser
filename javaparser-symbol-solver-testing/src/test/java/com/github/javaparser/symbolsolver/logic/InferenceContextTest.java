@@ -22,6 +22,7 @@
 package com.github.javaparser.symbolsolver.logic;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +31,7 @@ import com.github.javaparser.resolution.declarations.ResolvedTypeParameterDeclar
 import com.github.javaparser.resolution.logic.InferenceContext;
 import com.github.javaparser.resolution.logic.InferenceVariableType;
 import com.github.javaparser.resolution.model.typesystem.ReferenceTypeImpl;
+import com.github.javaparser.resolution.types.ResolvedArrayType;
 import com.github.javaparser.resolution.types.ResolvedReferenceType;
 import com.github.javaparser.resolution.types.ResolvedType;
 import com.github.javaparser.resolution.types.ResolvedTypeVariable;
@@ -37,6 +39,7 @@ import com.github.javaparser.symbolsolver.reflectionmodel.ReflectionClassDeclara
 import com.github.javaparser.symbolsolver.reflectionmodel.ReflectionInterfaceDeclaration;
 import com.github.javaparser.symbolsolver.resolution.typesolvers.ReflectionTypeSolver;
 import com.google.common.collect.ImmutableList;
+import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -86,5 +89,39 @@ class InferenceContextTest {
     void placingASingleVariableInside() {
         ResolvedType result = new InferenceContext(typeSolver).addPair(listOfE, listOfString);
         assertEquals(listOf(new InferenceVariableType(0, typeSolver)), result);
+    }
+
+    @Test
+    void resolvedActualTypeParameterRetainsItsDeclaration() {
+        ResolvedTypeParameterDeclaration caller =
+                ResolvedTypeParameterDeclaration.onType("T", "Caller", Collections.emptyList());
+        ResolvedType actual = new ResolvedTypeVariable(caller);
+        InferenceContext context = new InferenceContext(
+                typeSolver, typeParameter -> !caller.getQualifiedName().equals(typeParameter.getQualifiedName()));
+        ResolvedType target = context.addPair(new ResolvedTypeVariable(tpE), actual);
+
+        assertSame(caller, context.resolve(target).asTypeParameter());
+        assertSame(actual, context.resolve(actual));
+    }
+
+    @Test
+    void resolvedActualTypeParametersArePreservedRecursively() {
+        ResolvedTypeParameterDeclaration caller =
+                ResolvedTypeParameterDeclaration.onType("T", "Caller", Collections.emptyList());
+        ResolvedType actual = listOf(new ResolvedArrayType(new ResolvedTypeVariable(caller)));
+        InferenceContext context = new InferenceContext(
+                typeSolver, typeParameter -> !caller.getQualifiedName().equals(typeParameter.getQualifiedName()));
+        ResolvedType target = context.addPair(new ResolvedTypeVariable(tpE), actual);
+
+        assertEquals(actual, context.resolve(target));
+        assertSame(
+                caller,
+                context.resolve(target)
+                        .asReferenceType()
+                        .typeParametersValues()
+                        .get(0)
+                        .asArrayType()
+                        .getComponentType()
+                        .asTypeParameter());
     }
 }

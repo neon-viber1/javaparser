@@ -68,6 +68,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TypeExtractor extends DefaultVisitorAdapter {
@@ -719,8 +720,13 @@ public class TypeExtractor extends DefaultVisitorAdapter {
         if (functionalMethod.isPresent()) {
             LambdaExpr lambdaExpr = node;
 
-            InferenceContext lambdaCtx = new InferenceContext(typeSolver);
-            InferenceContext funcInterfaceCtx = new InferenceContext(typeSolver);
+            Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer = typeParameter -> !typeParameter
+                    .toAst()
+                    .flatMap(Node::getParentNode)
+                    .map(node::isDescendantOf)
+                    .orElse(false);
+            InferenceContext lambdaCtx = new InferenceContext(typeSolver, isTypeParameterToInfer);
+            InferenceContext funcInterfaceCtx = new InferenceContext(typeSolver, isTypeParameterToInfer);
 
             // At this point parameterType
             // if Function<T=? super Stream.T, ? extends map.R>
