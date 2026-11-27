@@ -105,6 +105,18 @@ class InferenceContextTest {
     }
 
     @Test
+    void recursiveInvocationSeparatesFormalAndActualOccurrencesOfTheSameDeclaration() {
+        ResolvedTypeParameterDeclaration parameter =
+                ResolvedTypeParameterDeclaration.onType("T", "Caller", Collections.emptyList());
+        ResolvedType variable = new ResolvedTypeVariable(parameter);
+        for (ResolvedType actual : new ResolvedType[] {variable, listOf(new ResolvedArrayType(variable)), string}) {
+            InferenceContext context = new InferenceContext(typeSolver, typeParameter -> true, typeParameter -> false);
+            ResolvedType target = context.addPair(variable, actual);
+            assertEquals(actual, context.resolve(target));
+        }
+    }
+
+    @Test
     void resolvedActualTypeParametersArePreservedRecursively() {
         ResolvedTypeParameterDeclaration caller =
                 ResolvedTypeParameterDeclaration.onType("T", "Caller", Collections.emptyList());

@@ -21,6 +21,51 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 class Issue5197Test {
 
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void recursiveInvocationInfersItsOwnTypeParameter(boolean block) {
+        String[] returnTypes = {"String", "T"};
+        String[] expected = {"java.lang.String", "T"};
+        for (boolean reverse : new boolean[] {false, true}) {
+            StringBuilder source = new StringBuilder("import java.util.*; import java.util.function.*; class Example {"
+                    + "static <T> T get(Supplier<T> supplier) {");
+            for (String returnType : returnTypes) {
+                source.append("get(() -> ");
+                if (block) source.append("{ return ");
+                source.append(returnType.equals("String") ? "\"x\"" : "(" + returnType + ") null");
+                if (block) source.append("; }");
+                source.append(");");
+            }
+            source.append("return null; }}");
+            CompilationUnit unit = new JavaParser(new ParserConfiguration()
+                            .setSymbolResolver(new JavaSymbolSolver(new ReflectionTypeSolver())))
+                    .parse(source.toString())
+                    .getResult()
+                    .get();
+            ResolvedTypeParameterDeclaration caller = unit.findFirst(MethodDeclaration.class)
+                    .get()
+                    .resolve()
+                    .getTypeParameters()
+                    .get(0);
+            List<MethodCallExpr> calls = unit.findAll(MethodCallExpr.class);
+            for (int repeat = 0; repeat < 2; repeat++) {
+                for (int offset = 0; offset < calls.size(); offset++) {
+                    int index = reverse ? calls.size() - offset - 1 : offset;
+                    assertEquals(
+                            "java.util.function.Supplier<" + expected[index] + ">",
+                            calls.get(index)
+                                    .findFirst(LambdaExpr.class)
+                                    .get()
+                                    .calculateResolvedType()
+                                    .describe());
+                    ResolvedType resolved = calls.get(index).calculateResolvedType();
+                    assertEquals(expected[index], resolved.describe());
+                    assertCallerParameter(resolved, caller);
+                }
+            }
+        }
+    }
+
     @Test
     void boundedCallerTypeCanSatisfyAConcreteFunctionalReturn() {
         String source = "import java.util.function.*; class Example {"
