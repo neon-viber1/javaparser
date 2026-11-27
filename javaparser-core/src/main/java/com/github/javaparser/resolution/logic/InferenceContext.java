@@ -26,6 +26,7 @@ import com.github.javaparser.resolution.declarations.ResolvedTypeParameterDeclar
 import com.github.javaparser.resolution.model.typesystem.ReferenceTypeImpl;
 import com.github.javaparser.resolution.types.*;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -42,8 +43,34 @@ public class InferenceContext {
 
     private Map<String, InferenceVariableType> inferenceVariableTypeMap = new HashMap<>();
 
+    private final Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer;
+
+    private final Predicate<ResolvedTypeParameterDeclaration> isActualTypeParameterToInfer;
+
     public InferenceContext(TypeSolver typeSolver) {
+        this(typeSolver, typeParameter -> true);
+    }
+
+    /**
+     * Creates an inference context that only replaces the selected type parameters with inference variables.
+     * Type parameters already declared in an enclosing context can be excluded to preserve their identity.
+     */
+    public InferenceContext(TypeSolver typeSolver, Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer) {
+        this(typeSolver, isTypeParameterToInfer, isTypeParameterToInfer);
+    }
+
+    /**
+     * Creates an inference context with separate policies for formal and actual type parameters.
+     * A recursive invocation can infer a formal parameter while preserving occurrences of the
+     * same declaration in the actual type supplied by its enclosing method.
+     */
+    public InferenceContext(
+            TypeSolver typeSolver,
+            Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer,
+            Predicate<ResolvedTypeParameterDeclaration> isActualTypeParameterToInfer) {
         this.typeSolver = typeSolver;
+        this.isTypeParameterToInfer = isTypeParameterToInfer;
+        this.isActualTypeParameterToInfer = isActualTypeParameterToInfer;
     }
 
     private InferenceVariableType inferenceVariableTypeForTp(ResolvedTypeParameterDeclaration tp) {
@@ -67,7 +94,7 @@ public class InferenceContext {
      */
     public ResolvedType addPair(ResolvedType target, ResolvedType actual) {
         target = placeInferenceVariables(target);
-        actual = placeInferenceVariables(actual);
+        actual = placeInferenceVariables(actual, isActualTypeParameterToInfer);
         registerCorrespondance(target, actual);
         return target;
     }
@@ -173,6 +200,8 @@ public class InferenceContext {
             } else if (formalType instanceof InferenceVariableType) {
                 ((InferenceVariableType) actualType).registerEquivalentType(formalType);
             }
+        } else if (actualType.isTypeVariable()) {
+            return;
         } else if (actualType.isConstraint()) {
             ResolvedLambdaConstraintType constraintType = actualType.asConstraintType();
             if (constraintType.getBound() instanceof InferenceVariableType) {
@@ -211,33 +240,38 @@ public class InferenceContext {
     }
 
     private ResolvedType placeInferenceVariables(ResolvedType type) {
+        return placeInferenceVariables(type, isTypeParameterToInfer);
+    }
+
+    private ResolvedType placeInferenceVariables(
+            ResolvedType type, Predicate<ResolvedTypeParameterDeclaration> selector) {
         if (type.isWildcard()) {
             if (type.asWildcard().isExtends()) {
                 return ResolvedWildcard.extendsBound(
-                        placeInferenceVariables(type.asWildcard().getBoundedType()));
+                        placeInferenceVariables(type.asWildcard().getBoundedType(), selector));
             }
             if (type.asWildcard().isSuper()) {
                 return ResolvedWildcard.superBound(
-                        placeInferenceVariables(type.asWildcard().getBoundedType()));
+                        placeInferenceVariables(type.asWildcard().getBoundedType(), selector));
             }
             return type;
         }
         if (type.isTypeVariable()) {
-            return inferenceVariableTypeForTp(type.asTypeParameter());
+            return selector.test(type.asTypeParameter()) ? inferenceVariableTypeForTp(type.asTypeParameter()) : type;
         }
         if (type.isReferenceType()) {
-            return type.asReferenceType().transformTypeParameters(tp -> placeInferenceVariables(tp));
+            return type.asReferenceType().transformTypeParameters(tp -> placeInferenceVariables(tp, selector));
         }
         if (type.isArray()) {
             return new ResolvedArrayType(
-                    placeInferenceVariables(type.asArrayType().getComponentType()));
+                    placeInferenceVariables(type.asArrayType().getComponentType(), selector));
         }
         if (type.isNull() || type.isPrimitive() || type.isVoid()) {
             return type;
         }
         if (type.isConstraint()) {
             return ResolvedLambdaConstraintType.bound(
-                    placeInferenceVariables(type.asConstraintType().getBound()));
+                    placeInferenceVariables(type.asConstraintType().getBound(), selector));
         }
         if (type instanceof InferenceVariableType) {
             return type;
@@ -253,7 +287,7 @@ public class InferenceContext {
         if (type.isReferenceType()) {
             return type.asReferenceType().transformTypeParameters(tp -> resolve(tp));
         }
-        if (type.isNull() || type.isPrimitive() || type.isVoid()) {
+        if (type.isNull() || type.isPrimitive() || type.isVoid() || type.isTypeVariable()) {
             return type;
         }
         if (type.isArray()) {

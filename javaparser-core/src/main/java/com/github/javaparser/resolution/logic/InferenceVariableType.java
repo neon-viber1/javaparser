@@ -94,7 +94,7 @@ public class InferenceVariableType implements ResolvedType {
         considered.add(inferenceVariableType);
         Set<ResolvedType> result = new HashSet<>();
         result.addAll(inferenceVariableType.equivalentTypes.stream()
-                .filter(t -> !t.isTypeVariable() && !(t instanceof InferenceVariableType))
+                .filter(t -> !(t instanceof InferenceVariableType))
                 .collect(Collectors.toSet()));
         inferenceVariableType.equivalentTypes.stream()
                 .filter(t -> t instanceof InferenceVariableType)

@@ -63,11 +63,13 @@ import com.github.javaparser.symbolsolver.resolution.typeinference.TypeHelper;
 import com.github.javaparser.utils.Log;
 import com.github.javaparser.utils.Pair;
 import com.google.common.collect.ImmutableList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TypeExtractor extends DefaultVisitorAdapter {
@@ -644,7 +646,8 @@ public class TypeExtractor extends DefaultVisitorAdapter {
                     }
                 }
 
-                result = resolveLambda(node, result);
+                result = resolveLambda(
+                        node, result, refMethod.getCorrespondingDeclaration().getTypeParameters());
             }
             return result;
         }
@@ -701,6 +704,11 @@ public class TypeExtractor extends DefaultVisitorAdapter {
     }
 
     private ResolvedType resolveLambda(LambdaExpr node, ResolvedType result) {
+        return resolveLambda(node, result, Collections.emptyList());
+    }
+
+    private ResolvedType resolveLambda(
+            LambdaExpr node, ResolvedType result, List<ResolvedTypeParameterDeclaration> invocationParameters) {
         // We need to replace the type variables
         Context ctx = JavaParserFactory.getContext(node, typeSolver);
         result = result.solveGenericTypes(ctx);
@@ -719,8 +727,20 @@ public class TypeExtractor extends DefaultVisitorAdapter {
         if (functionalMethod.isPresent()) {
             LambdaExpr lambdaExpr = node;
 
-            InferenceContext lambdaCtx = new InferenceContext(typeSolver);
-            InferenceContext funcInterfaceCtx = new InferenceContext(typeSolver);
+            Predicate<ResolvedTypeParameterDeclaration> isActualTypeParameterToInfer = typeParameter -> !typeParameter
+                    .toAst()
+                    .flatMap(Node::getParentNode)
+                    .map(node::isDescendantOf)
+                    .orElse(false);
+            Predicate<ResolvedTypeParameterDeclaration> isTypeParameterToInfer =
+                    typeParameter -> invocationParameters.stream().anyMatch(invocationParameter -> invocationParameter
+                                    .getQualifiedName()
+                                    .equals(typeParameter.getQualifiedName()))
+                            || isActualTypeParameterToInfer.test(typeParameter);
+            InferenceContext lambdaCtx =
+                    new InferenceContext(typeSolver, isTypeParameterToInfer, isActualTypeParameterToInfer);
+            InferenceContext funcInterfaceCtx =
+                    new InferenceContext(typeSolver, isTypeParameterToInfer, isActualTypeParameterToInfer);
 
             // At this point parameterType
             // if Function<T=? super Stream.T, ? extends map.R>
